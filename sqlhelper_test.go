@@ -128,6 +128,12 @@ func TestSelectExecutor(t *testing.T) {
 			wantArgs: 0,
 		},
 		{
+			name:     "DistinctWithAlias",
+			buildSQL: func() (string, []any, error) { return Helper{}.Alias("u").SelectDistinct("name", "users").ToSql() },
+			wantSQL:  "SELECT DISTINCT(`u`.`name`) FROM `users` AS `u`",
+			wantArgs: 0,
+		},
+		{
 			name: "WithOptions",
 			buildSQL: func() (string, []any, error) {
 				return Helper{}.Select([]string{"id", "name"}, "users").
