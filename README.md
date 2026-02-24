@@ -101,6 +101,7 @@ users, err := userHelper.ModelSelect(nil).List(ctx, db)
 
 // Query single row
 user, err := userHelper.ModelSelectWhere("id = ?", 1).One(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` WHERE id = ?
 ```
 
 ### With Where Clause
@@ -108,12 +109,15 @@ user, err := userHelper.ModelSelectWhere("id = ?", 1).One(ctx, db)
 ```go
 // Single condition
 users, _, err := userHelper.ModelPaginationWhere(ctx, db, &PageQuery{Page: 1, Limit: 10}, "age > ?", 18)
+// SELECT `age`, `email`, `id`, `name` FROM `users` WHERE age > ? LIMIT 10 OFFSET 0
 
 // Multiple conditions
 users, _, err := userHelper.ModelSelectWhere("age > ? AND status = ?", 18, "active").List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` WHERE age > ? AND status = ?
 
 // IN clause
 users, _, err := userHelper.ModelSelectWhere("id IN (?, ?, ?)", 1, 2, 3).List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` WHERE id IN (?, ?, ?)
 ```
 
 ### With Alias
@@ -127,6 +131,7 @@ sql, _ := userHelper.ModelSelect(nil).ToSql()
 
 // Alias with WHERE
 user, err := userHelper.ModelSelectWhere("u.id = ?", 1).One(ctx, db)
+// SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u` WHERE u.id = ?
 ```
 
 ### With Options (OrderBy, Limit, Join)
@@ -139,20 +144,26 @@ users, err := userHelper.ModelSelect(nil).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
         return b.OrderBy("created_at DESC").Limit(10)
     }).List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` ORDER BY created_at DESC LIMIT 10
 
-// LEFT JOIN with orders
+// LEFT JOIN with orders (no alias)
 users, err := userHelper.ModelSelect(nil).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
-        return b.LeftJoin("orders o ON o.user_id = u.id")
+        return b.LeftJoin("orders o ON o.user_id = users.id")
     }).List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` LEFT JOIN orders o ON o.user_id = users.id
 
-// Multiple JOINs
-users, err := userHelper.ModelSelect(nil).
+// Multiple JOINs with alias
+userHelperAlias := userHelper.Alias("u")
+users, err = userHelperAlias.ModelSelect(nil).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
         return b.
             Join("orders o ON o.user_id = u.id").
             LeftJoin("profiles p ON p.user_id = u.id")
     }).List(ctx, db)
+// SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u`
+// JOIN orders o ON o.user_id = u.id
+// LEFT JOIN profiles p ON p.user_id = u.id
 ```
 
 ## Query Interface
@@ -208,9 +219,11 @@ func (p *PageQuery) Countless() bool { return p.Countless }
 // Usage - developer controls count behavior
 // User-facing pagination with total count
 users, total, err := userHelper.ModelPagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false})
+// SELECT `age`, `email`, `id`, `name` FROM `users` LIMIT 10 OFFSET 0
 
 // Internal use or infinite scroll - skip count query for better performance
 users, total, err := userHelper.ModelPagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: true})
+// SELECT `age`, `email`, `id`, `name` FROM `users` LIMIT 10 OFFSET 0
 ```
 
 ### Sort Query
@@ -236,6 +249,7 @@ func (q *SortQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
 users, err := userHelper.ModelSelect(nil).
     WithQueries(&SortQuery{Field: "created_at", Desc: true}).
     List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` ORDER BY `created_at` DESC
 ```
 
 ### Where Filter Query
@@ -259,6 +273,7 @@ users, err := userHelper.ModelSelect(nil).
         &SortQuery{Field: "id", Desc: true},
     ).
     List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` WHERE status = ? ORDER BY `id` DESC
 ```
 
 ### Multi-tenant Query
@@ -300,6 +315,7 @@ func (q *NotDeletedQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOpti
 users, err := userHelper.ModelSelect(nil).
     WithQueries(&NotDeletedQuery{}).
     List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` WHERE `deleted_at` IS NULL
 ```
 
 ### JOIN Injection Query
@@ -338,14 +354,21 @@ userHelper := sqlhelper.NewModelHelper(func() User { return User{} }).Alias("u")
 
 users, total, err := userHelper.ModelSelect(nil).
     WithQueries(
-        &TenantQuery{TenantID: "tenant_123"},     // Query: Multi-tenant filter
-        &StatusFilterQuery{Status: "active"},     // Query: Status filter
-        &SortQuery{Field: "created_at", Desc: true}, // Query: Sorting
+        &TenantQuery{TenantID: "tenant_123"},     // Query: WHERE `u`.`tenant_id` = ?
+        &StatusFilterQuery{Status: "active"},     // Query: WHERE status = ?
+        &SortQuery{Field: "created_at", Desc: true}, // Query: ORDER BY `u`.`created_at` DESC
     ).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
         return b.LeftJoin("orders o ON o.user_id = u.id")
     }).
-    Pagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false}) // PaginationQuery
+    Pagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false})
+
+// Generated SQL:
+// SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u`
+// WHERE `u`.`tenant_id` = ? AND status = ?
+// LEFT JOIN orders o ON o.user_id = u.id
+// ORDER BY `u`.`created_at` DESC
+// LIMIT 10 OFFSET 0
 ```
 
 ### Insert Operations
@@ -355,6 +378,7 @@ users, total, err := userHelper.ModelSelect(nil).
 result, err := userHelper.ModelInsert([]string{"name", "email"}, &User{
     Name: "John", Email: "john@test.com",
 }).Exec(ctx, db)
+// INSERT INTO `users` (`name`,`email`) VALUES (?,?)
 
 // Multiple inserts
 users := []User{
@@ -362,11 +386,14 @@ users := []User{
     {Name: "Jane", Email: "jane@test.com"},
 }
 result, err := userHelper.ModelInserts([]string{"name", "email"}, users).Exec(ctx, db)
+// INSERT INTO `users` (`name`,`email`) VALUES (?,?),(?,?)
 
 // ON DUPLICATE KEY UPDATE
 result, err := userHelper.ModelInsert([]string{"id", "name", "email"}, &User{
     ID: 1, Name: "John", Email: "john@test.com",
 }).OnDuplicateUpdateValues("name", "email").Exec(ctx, db)
+// INSERT INTO `users` (`id`,`name`,`email`) VALUES (?,?,?) 
+// ON DUPLICATE KEY UPDATE `name` = VALUES(`name`),`email` = VALUES(`email`)
 ```
 
 ### Update Operations
@@ -376,11 +403,13 @@ result, err := userHelper.ModelInsert([]string{"id", "name", "email"}, &User{
 result, err := userHelper.ModelUpdate(&User{ID: 1, Name: "John"}, []string{"name"}).
     Where("id = ?", 1).
     Exec(ctx, db)
+// UPDATE `users` SET `name` = ? WHERE id = ? LIMIT 1
 
 // Update with custom conditions
 result, err := userHelper.ModelUpdate(&User{Name: "Updated"}, []string{"name"}).
     Where("age > ?", 18).
     Exec(ctx, db)
+// UPDATE `users` SET `name` = ? WHERE age > ? LIMIT 1
 ```
 
 ### Columns Filter
@@ -398,6 +427,7 @@ cols := userHelper.Columns(func(col string) bool {
 
 // Use filtered columns in select
 users, err := userHelper.ModelSelect(cols).List(ctx, db)
+// SELECT `age`, `id`, `name` FROM `users`
 ```
 
 ### MappingModel (Without Model Interface)
@@ -420,6 +450,7 @@ userHelper := sqlhelper.NewMappingModelHelper(func(u *User) (string, map[string]
 
 // Use same API as ModelHelper
 users, err := userHelper.ModelSelect(nil).List(ctx, db)
+// SELECT `id`, `name`, `email` FROM `users`
 ```
 
 ### Transaction Support
@@ -433,15 +464,11 @@ defer tx.Rollback()
 
 // Use transaction as Conn
 _, err = userHelper.ModelInsert([]string{"name"}, &User{Name: "John"}).Exec(ctx, tx)
-if err != nil {
-    return err
-}
+// INSERT INTO `users` (`name`) VALUES (?)
 
 _, err = userHelper.ModelUpdate(&User{ID: 1, Name: "John"}, []string{"name"}).
     Where("id = ?", 1).Exec(ctx, tx)
-if err != nil {
-    return err
-}
+// UPDATE `users` SET `name` = ? WHERE id = ? LIMIT 1
 
 return tx.Commit()
 ```
@@ -453,11 +480,13 @@ h := sqlhelper.Helper{}
 
 // Basic select
 sql, _ := h.Select([]string{"id", "name"}, "users").ToSql()
+// SELECT `id`, `name` FROM `users`
 
 // With WHERE
 sql, _ = h.Select([]string{"id", "name"}, "users").
     Where("age > ?", 18).
     ToSql()
+// SELECT `id`, `name` FROM `users` WHERE age > ?
 
 // With alias
 h = sqlhelper.Helper{}.Alias("u")

@@ -139,20 +139,26 @@ users, err := userHelper.ModelSelect(nil).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
         return b.OrderBy("created_at DESC").Limit(10)
     }).List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` ORDER BY created_at DESC LIMIT 10
 
-// LEFT JOIN orders 表
+// LEFT JOIN orders 表（无别名）
 users, err := userHelper.ModelSelect(nil).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
-        return b.LeftJoin("orders o ON o.user_id = u.id")
+        return b.LeftJoin("orders o ON o.user_id = users.id")
     }).List(ctx, db)
+// SELECT `age`, `email`, `id`, `name` FROM `users` LEFT JOIN orders o ON o.user_id = users.id
 
-// 多表 JOIN
-users, err := userHelper.ModelSelect(nil).
+// 多表 JOIN（使用别名）
+userHelperAlias := userHelper.Alias("u")
+users, err = userHelperAlias.ModelSelect(nil).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
         return b.
             Join("orders o ON o.user_id = u.id").
             LeftJoin("profiles p ON p.user_id = u.id")
     }).List(ctx, db)
+// SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u`
+// JOIN orders o ON o.user_id = u.id
+// LEFT JOIN profiles p ON p.user_id = u.id
 ```
 
 ## Query 接口
@@ -347,8 +353,7 @@ func (q *WithOrderQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOptio
         )
     }
 }
-// Countless: 连表查询通常设为 true（count 可能比较耗时）
-func (q *WithOrderQuery) Countless() bool { return true }
+// WithOrderQuery 实现 Query 接口
 
 // 与别名一起使用
 h := sqlhelper.Helper{}.Alias("u")
@@ -356,6 +361,8 @@ users, err := h.Select([]string{"id", "name"}, "users").
     WithQueries(&WithOrderQuery{OrderStatus: 1}).
     QueryRows(ctx, db)
 // SELECT `u`.`id`, `u`.`name` FROM `users` AS `u` 
+// LEFT JOIN orders o ON o.user_id = `u`.`id` AND o.status = ?
+```
 // LEFT JOIN orders o ON o.user_id = `u`.`id` AND o.status = ?
 ```
 
@@ -367,16 +374,21 @@ userHelper := sqlhelper.NewModelHelper(func() User { return User{} }).Alias("u")
 
 users, total, err := userHelper.ModelSelect(nil).
     WithQueries(
-        &TenantQuery{TenantID: "tenant_123"},     // Query: 多租户过滤
-        &StatusFilterQuery{Status: "active"},     // Query: 状态过滤
-        &SortQuery{Field: "created_at", Desc: true}, // Query: 排序
+        &TenantQuery{TenantID: "tenant_123"},     // Query: WHERE `u`.`tenant_id` = ?
+        &StatusFilterQuery{Status: "active"},     // Query: WHERE status = ?
+        &SortQuery{Field: "created_at", Desc: true}, // Query: ORDER BY `u`.`created_at` DESC
     ).
     WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
         return b.LeftJoin("orders o ON o.user_id = u.id")
     }).
-    Pagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false}) // PaginationQuery
+    Pagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false})
 
-// SELECT `u`.`id`, `u`.`name` FROM `users` AS `u` WHERE `u`.`tenant_id` = ?
+// 生成的 SQL:
+// SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u`
+// WHERE `u`.`tenant_id` = ? AND status = ?
+// LEFT JOIN orders o ON o.user_id = u.id
+// ORDER BY `u`.`created_at` DESC
+// LIMIT 10 OFFSET 0
 ```
 
 ### 插入操作
