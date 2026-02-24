@@ -363,8 +363,6 @@ users, err := h.Select([]string{"id", "name"}, "users").
 // SELECT `u`.`id`, `u`.`name` FROM `users` AS `u` 
 // LEFT JOIN orders o ON o.user_id = `u`.`id` AND o.status = ?
 ```
-// LEFT JOIN orders o ON o.user_id = `u`.`id` AND o.status = ?
-```
 
 ### 综合示例：组合多种 Query 类型与分页
 
