@@ -375,7 +375,7 @@ users, total, err := userHelper.ModelSelect(nil).
         return b.LeftJoin("orders o ON o.user_id = u.id")
     }).
     Pagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false}) // PaginationQuery
-```
+
 // SELECT `u`.`id`, `u`.`name` FROM `users` AS `u` WHERE `u`.`tenant_id` = ?
 ```
 
