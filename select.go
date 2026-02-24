@@ -65,6 +65,16 @@ func (exec SelectExecutor) WithOptions(opts ...SelectBuilderOption) SelectExecut
 	}
 }
 
+// WithQueries applies Query options (pagination, sorting, filtering) to the query.
+// The Query.Option receives the Helper context for proper column escaping with alias support.
+func (exec SelectExecutor) WithQueries(queries ...Query) SelectExecutor {
+	options := make([]SelectBuilderOption, 0, len(queries))
+	for _, q := range queries {
+		options = append(options, q.Option(exec.helper))
+	}
+	return exec.WithOptions(options...)
+}
+
 // QueryRow executes the query and returns a single row.
 func (exec SelectExecutor) QueryRow(ctx context.Context, conn Conn) *sql.Row {
 	statement, args := exec.builder.MustSql()
@@ -200,7 +210,7 @@ func (exec SelectExecutor) Pagination(ctx context.Context, conn Conn, query Pagi
 	if !query.Countless() {
 		ptr = &total
 	}
-	if err = exec.WithOptions(query.Option(exec.helper)).WithOptions(opts...).QueryTotals(ctx, conn, func(columns []string) []any {
+	if err = exec.WithQueries(query).WithOptions(opts...).QueryTotals(ctx, conn, func(columns []string) []any {
 		count++
 		return alloc(columns)
 	}, ptr); err != nil {

@@ -6,44 +6,37 @@ A lightweight SQL helper library for Go, built on top of [squirrel](https://gith
 
 - **ModelHelper**: Generic-based model operations with full type safety
 - **Fluent Query Builder**: Easy-to-use chain API for building SQL queries
-- **Pagination Support**: Built-in pagination for large datasets
+- **Query Interface**: Reusable SQL clause injection (pagination, sorting, filtering, multi-tenant, JOINs)
 - **Custom Escaping**: Support custom escape functions for different SQL dialects
+- **Table Alias**: Automatic column escaping with table alias
 - **Transaction Support**: Works with database connections and transactions
-- **MappingModel**: Flexible model definition without interface implementation
 
-## Comparison with Other Frameworks
+## Comparison
 
-| Feature | SQLHelper | GORM | ent | SQLBoiler | XORM |
-|---------|-----------|------|-----|-----------|------|
-| **Type Safety** | Generics | Reflection | Code Gen | Code Gen | Reflection |
-| **Learning Curve** | Low | Medium | High | High | Low |
-| **Migration/Auto Schema** | No | Yes | Yes | Yes | Yes |
-| **Associations** | No | Yes | Yes | Yes | Yes |
-| **Raw SQL Support** | Excellent | Limited | Limited | Good | Good |
-| **Bundle Size** | Minimal | Large | Large | Large | Medium |
-| **Dependencies** | squirrel only | Many | Many | Few | Few |
-
-## Advantages
-
-- **Lightweight**: Only depends on squirrel, minimal dependencies
-- **Type Safe**: Full generics support for compile-time type checking
-- **Flexible**: Work with raw SQL when needed, no ORM lock-in
-- **Simple**: Minimal abstraction over SQL, easy to understand and debug
-- **Fast**: No reflection overhead, direct SQL execution
+| Feature | SQLHelper | GORM | ent | SQLBoiler |
+|---------|-----------|------|-----|-----------|
+| **Type Safety** | Generics | Reflection | Code Gen | Code Gen |
+| **Learning Curve** | Low | Medium | High | High |
+| **Bundle Size** | Minimal (~50KB) | Large (~5MB) | Large | Medium |
+| **Dependencies** | squirrel only | Many | Many | Few |
+| **Migration** | No | Yes | Yes | No |
+| **Associations** | No | Yes | Yes | No |
+| **Raw SQL Control** | Full | Limited | Limited | Full |
+| **Reflection Overhead** | None | High | None | None |
 
 ## When to Use SQLHelper
 
-- **Performance-critical applications**: When you need direct SQL control with type safety
-- **Existing database**: Working with legacy databases without migrations
-- **Simple CRUD**: When you don't need complex associations or migrations
-- **Hybrid approach**: Use raw SQL for complex queries with model mapping for results
-- **Learning/Prototyping**: Quick to start, minimal boilerplate
+**Recommended for:**
+- **Performance-critical applications**: No reflection overhead, direct SQL execution
+- **Existing databases**: Working with legacy schemas without migrations
+- **Complex queries**: Full control over SQL with type-safe result mapping
+- **Microservices**: Minimal dependencies, small binary size
+- **Teams familiar with SQL**: Prefer writing SQL over ORM abstractions
 
-## When to Use Other Frameworks
-
-- **GORM/ent**: When you need automatic migrations and complex associations
-- **SQLBoiler**: When you want maximum performance with code generation
-- **Traditional ORMs**: When team is familiar with Django/Rails-style ORM patterns
+**Not recommended for:**
+- Projects needing automatic migrations and schema management
+- Applications requiring complex associations/relations
+- Teams preferring ORM-style data access patterns
 
 ## Installation
 
@@ -54,8 +47,6 @@ go get github.com/Just-maple/sqlhelper
 ## Quick Start
 
 ### Define a Model
-
-Implement the `Model` interface on your struct:
 
 ```go
 type User struct {
@@ -77,7 +68,7 @@ func (u *User) FieldMapping(dst map[string]any) {
 }
 ```
 
-### Initialize ModelHelper
+### Initialize
 
 ```go
 import (
@@ -87,211 +78,456 @@ import (
 )
 
 db, _ := sql.Open("mysql", "user:password@tcp(localhost:3306)/test")
-
-// Create ModelHelper - type is automatically inferred
 userHelper := sqlhelper.NewModelHelper(func() User { return User{} })
 ```
 
-## ModelHelper Usage (Recommended)
+## Model Examples
 
-### Query Operations
+### Basic Select
 
 ```go
-// Pagination query - returns models and total count
-users, total, err := userHelper.ModelPagination(ctx, db, &PageQuery{Page: 1, Limit: 10})
+userHelper := sqlhelper.NewModelHelper(func() User { return User{} })
 
-// Query with WHERE clause
-users, total, err := userHelper.ModelPaginationWhere(ctx, db, &PageQuery{Page: 1, Limit: 10}, "age > ?", 18)
+// Select all columns (inferred from FieldMapping)
+sql, _ := userHelper.ModelSelect(nil).ToSql()
+// SELECT `age`, `email`, `id`, `name` FROM `users`
 
 // Select specific columns
-exec := userHelper.ModelSelect([]string{"id", "name", "email"})
-users, err := exec.List(ctx, db)
+sql, _ = userHelper.ModelSelect([]string{"id", "name"}).ToSql()
+// SELECT `id`, `name` FROM `users`
 
-// Select single row
+// Execute query
+users, err := userHelper.ModelSelect(nil).List(ctx, db)
+
+// Query single row
 user, err := userHelper.ModelSelectWhere("id = ?", 1).One(ctx, db)
+```
 
-// DISTINCT pagination on a column
-emails, total, err := userHelper.ModelDistinctPagination(ctx, db, &PageQuery{Page: 1, Limit: 10}, "email")
+### With Where Clause
+
+```go
+// Single condition
+users, _, err := userHelper.ModelPaginationWhere(ctx, db, &PageQuery{Page: 1, Limit: 10}, "age > ?", 18)
+
+// Multiple conditions
+users, _, err := userHelper.ModelSelectWhere("age > ? AND status = ?", 18, "active").List(ctx, db)
+
+// IN clause
+users, _, err := userHelper.ModelSelectWhere("id IN (?, ?, ?)", 1, 2, 3).List(ctx, db)
+```
+
+### With Alias
+
+```go
+// Set alias on ModelHelper
+userHelper := sqlhelper.NewModelHelper(func() User { return User{} }).Alias("u")
+
+sql, _ := userHelper.ModelSelect(nil).ToSql()
+// SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u`
+
+// Alias with WHERE
+user, err := userHelper.ModelSelectWhere("u.id = ?", 1).One(ctx, db)
+```
+
+### With Options (OrderBy, Limit, Join)
+
+```go
+userHelper := sqlhelper.NewModelHelper(func() User { return User{} })
+
+// OrderBy and Limit
+users, err := userHelper.ModelSelect(nil).
+    WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.OrderBy("created_at DESC").Limit(10)
+    }).List(ctx, db)
+
+// LEFT JOIN with orders
+users, err := userHelper.ModelSelect(nil).
+    WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.LeftJoin("orders o ON o.user_id = u.id")
+    }).List(ctx, db)
+
+// Multiple JOINs
+users, err := userHelper.ModelSelect(nil).
+    WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.
+            Join("orders o ON o.user_id = u.id").
+            LeftJoin("profiles p ON p.user_id = u.id")
+    }).List(ctx, db)
+```
+
+## Query Interface
+
+The `Query` interface enables reusable SQL clause injection through `WithQueries`. For pagination with count control, implement `PaginationQuery`:
+
+```go
+// Query for SQL clause injection (WHERE, SORT, JOIN, etc.)
+type Query interface {
+    Option(helper Helper) SelectBuilderOption
+}
+
+// PaginationQuery extends Query with count control for pagination
+type PaginationQuery interface {
+    Query
+    Countless() bool // true=skip count, false=execute count
+}
+```
+
+**Key Points:**
+- `Option` receives `Helper` context for proper column escaping with alias support
+- Use `h.EscapeColumn(key)` inside Option to escape columns with alias prefix
+- Multiple `Query` instances can be chained via `WithQueries`
+- `Query` is used for SQL clause injection (WHERE, SORT, JOIN)
+- `PaginationQuery` extends `Query` with `Countless()` for pagination count control:
+  - `return false`: Execute concurrent count query (for UI pagination with total count)
+  - `return true`: Skip count query (for internal use, infinite scroll, or when total is not needed)
+
+**Common Use Cases:**
+- **Pagination**: LIMIT/OFFSET injection
+- **Sorting**: ORDER BY with dynamic field and direction
+- **Filtering**: WHERE conditions with parameters
+- **Multi-tenant**: Automatic tenant_id filtering
+- **JOIN injection**: Dynamic table joins based on query context
+- **Soft delete**: Automatic `deleted_at IS NULL` filtering
+
+### Pagination Query
+
+```go
+type PageQuery struct {
+    Page      int
+    Limit     int
+    Countless bool // Control count query: true=skip, false=execute
+}
+
+func (p *PageQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
+    return func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.Limit(uint64(p.Limit)).Offset(uint64((p.Page - 1) * p.Limit))
+    }
+}
+func (p *PageQuery) Countless() bool { return p.Countless }
+
+// Usage - developer controls count behavior
+// User-facing pagination with total count
+users, total, err := userHelper.ModelPagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false})
+
+// Internal use or infinite scroll - skip count query for better performance
+users, total, err := userHelper.ModelPagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: true})
+```
+
+### Sort Query
+
+```go
+type SortQuery struct {
+    Field string
+    Desc  bool
+}
+
+func (q *SortQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
+    order := "ASC"
+    if q.Desc {
+        order = "DESC"
+    }
+    return func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.OrderByClause(h.EscapeColumn(q.Field) + " " + order)
+    }
+}
+// SortQuery implements Query interface
+
+// Usage with WithQueries
+users, err := userHelper.ModelSelect(nil).
+    WithQueries(&SortQuery{Field: "created_at", Desc: true}).
+    List(ctx, db)
+```
+
+### Where Filter Query
+
+```go
+type StatusFilterQuery struct {
+    Status string
+}
+
+func (q *StatusFilterQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
+    return func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.Where("status = ?", q.Status)
+    }
+}
+// StatusFilterQuery implements Query interface
+
+// Usage - can be combined with other queries
+users, err := userHelper.ModelSelect(nil).
+    WithQueries(
+        &StatusFilterQuery{Status: "active"},
+        &SortQuery{Field: "id", Desc: true},
+    ).
+    List(ctx, db)
+```
+
+### Multi-tenant Query
+
+```go
+type TenantQuery struct {
+    TenantID string
+}
+
+func (q *TenantQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
+    return func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        // Use h.EscapeColumn for proper alias-aware escaping
+        return b.Where(h.EscapeColumn("tenant_id")+" = ?", q.TenantID)
+    }
+}
+// TenantQuery implements Query interface
+
+// Usage with alias
+h := sqlhelper.Helper{}.Alias("u")
+users, err := h.Select([]string{"id", "name"}, "users").
+    WithQueries(&TenantQuery{TenantID: "tenant_123"}).
+    QueryRows(ctx, db)
+// SELECT `u`.`id`, `u`.`name` FROM `users` AS `u` WHERE `u`.`tenant_id` = ?
+```
+
+### Soft Delete Query
+
+```go
+type NotDeletedQuery struct{}
+
+func (q *NotDeletedQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
+    return func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.Where(h.EscapeColumn("deleted_at") + " IS NULL")
+    }
+}
+// NotDeletedQuery implements Query interface
+
+// Usage - automatically filters soft-deleted records
+users, err := userHelper.ModelSelect(nil).
+    WithQueries(&NotDeletedQuery{}).
+    List(ctx, db)
+```
+
+### JOIN Injection Query
+
+```go
+type WithOrderQuery struct {
+    OrderStatus int
+}
+
+func (q *WithOrderQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
+    return func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        // Use h.EscapeColumn for proper alias-aware column escaping
+        userIDCol := h.EscapeColumn("id")
+        return b.LeftJoin(
+            "orders o ON o.user_id = "+userIDCol+" AND o.status = ?",
+            q.OrderStatus,
+        )
+    }
+}
+// WithOrderQuery implements Query interface
+
+// Usage with alias
+h := sqlhelper.Helper{}.Alias("u")
+users, err := h.Select([]string{"id", "name"}, "users").
+    WithQueries(&WithOrderQuery{OrderStatus: 1}).
+    QueryRows(ctx, db)
+// SELECT `u`.`id`, `u`.`name` FROM `users` AS `u` 
+// LEFT JOIN orders o ON o.user_id = `u`.`id` AND o.status = ?
+```
+
+### Combined: Multiple Query Types with Pagination
+
+```go
+// Combine pagination, sorting, filtering, and multi-tenant
+userHelper := sqlhelper.NewModelHelper(func() User { return User{} }).Alias("u")
+
+users, total, err := userHelper.ModelSelect(nil).
+    WithQueries(
+        &TenantQuery{TenantID: "tenant_123"},     // Query: Multi-tenant filter
+        &StatusFilterQuery{Status: "active"},     // Query: Status filter
+        &SortQuery{Field: "created_at", Desc: true}, // Query: Sorting
+    ).
+    WithOptions(func(b sqlhelper.SelectBuilder) sqlhelper.SelectBuilder {
+        return b.LeftJoin("orders o ON o.user_id = u.id")
+    }).
+    Pagination(ctx, db, &PageQuery{Page: 1, Limit: 10, Countless: false}) // PaginationQuery
 ```
 
 ### Insert Operations
 
 ```go
-// Insert single model
-result, err := userHelper.ModelInsert(nil, user).Exec(ctx, db)
+// Single insert
+result, err := userHelper.ModelInsert([]string{"name", "email"}, &User{
+    Name: "John", Email: "john@test.com",
+}).Exec(ctx, db)
 
-// Insert multiple models
-result, err := userHelper.ModelInsert(nil, user1, user2, user3).Exec(ctx, db)
+// Multiple inserts
+users := []User{
+    {Name: "John", Email: "john@test.com"},
+    {Name: "Jane", Email: "jane@test.com"},
+}
+result, err := userHelper.ModelInserts([]string{"name", "email"}, users).Exec(ctx, db)
 
-// Insert with ON DUPLICATE KEY UPDATE
-result, err := userHelper.ModelInsert([]string{"id", "name", "email"}, user).
-    OnDuplicateUpdateValues("name", "email").
-    Exec(ctx, db)
+// ON DUPLICATE KEY UPDATE
+result, err := userHelper.ModelInsert([]string{"id", "name", "email"}, &User{
+    ID: 1, Name: "John", Email: "john@test.com",
+}).OnDuplicateUpdateValues("name", "email").Exec(ctx, db)
 ```
 
 ### Update Operations
 
 ```go
-// Update model by ID (automatically adds WHERE id = ?)
-result, err := userHelper.ModelUpdate(user, nil).Exec(ctx, db)
+// Update with WHERE
+result, err := userHelper.ModelUpdate(&User{ID: 1, Name: "John"}, []string{"name"}).
+    Where("id = ?", 1).
+    Exec(ctx, db)
 
-// Update with custom WHERE
-result, err := sqlhelper.Helper{}.Update("users", map[string]any{"name": "John"}, sqlhelper.Helper{}.Update("users", map[string]any{"name": "John"}).Where("age > ?", 18)).Exec(ctx, db)
+// Update with custom conditions
+result, err := userHelper.ModelUpdate(&User{Name: "Updated"}, []string{"name"}).
+    Where("age > ?", 18).
+    Exec(ctx, db)
 ```
 
-## Raw SQL Helper Usage
-
-### Basic Select
+### Columns Filter
 
 ```go
-h := sqlhelper.Helper{}
+// Get all columns
+allCols := userHelper.Columns(nil)
+// []string{"age", "email", "id", "name"}
 
-// Simple select
-exec := h.Select([]string{"id", "name", "email"}, "users")
-rows, err := exec.QueryRows(ctx, db)
-
-// Select with WHERE
-exec = h.Select([]string{"id", "name"}, "users").Where("age > ?", 18)
-
-// Select distinct
-exec = h.SelectDistinct("email", "users")
-```
-
-### Insert/Update/Delete
-
-```go
-// Insert
-result, err := h.Insert("users", []string{"name", "email"}, []any{"John", "john@example.com"}).Exec(ctx, db)
-
-// Update
-result, err := h.Update("users", map[string]any{"name": "John"}).Where("id = ?", 1).Exec(ctx, db)
-```
-
-### Custom Escape Function
-
-```go
-// Use double quotes instead of backticks (e.g., PostgreSQL)
-h := sqlhelper.Helper{}
-h = h.WithEscapeFunc(func(key string, table bool) string {
-    return fmt.Sprintf("\"%s\"", key)
+// Filter columns
+cols := userHelper.Columns(func(col string) bool {
+    return col != "email" // exclude email
 })
+// []string{"age", "id", "name"}
+
+// Use filtered columns in select
+users, err := userHelper.ModelSelect(cols).List(ctx, db)
 ```
 
-## Table Alias
+### MappingModel (Without Model Interface)
 
 ```go
-h := sqlhelper.Helper{}.Alias("u")
-// SELECT u.id, u.name FROM users u
-exec := h.Select([]string{"id", "name"}, "users")
-```
-
-## Pagination Query
-
-SQLHelper uses the `PaginationQuery` interface for pagination:
-
-```go
-type PageQuery struct {
-    Page  int
-    Limit int
-}
-
-func (p *PageQuery) Option(h sqlhelper.Helper) sqlhelper.SelectBuilderOption {
-    return func(builder squirrel.SelectBuilder) squirrel.SelectBuilder {
-        return builder.Limit(uint64(p.Limit)).Offset(uint64((p.Page - 1) * p.Limit))
-    }
-}
-
-func (p *PageQuery) Countless() bool {
-    return false // true to skip count query
-}
-```
-
-## MappingModel (Alternative to Model Interface)
-
-If you don't want to implement the Model interface on your struct, use MappingModel:
-
-```go
+// Use MappingModel if you don't want to implement Model interface
 type User struct {
     ID    int
     Name  string
     Email string
-    Age   int
 }
 
-userHelper := sqlhelper.NewMappingModelHelper[User](func(u *User) (string, map[string]any) {
+userHelper := sqlhelper.NewMappingModelHelper(func(u *User) (string, map[string]any) {
     return "users", map[string]any{
         "id":    &u.ID,
         "name":  &u.Name,
         "email": &u.Email,
-        "age":   &u.Age,
     }
 })
+
+// Use same API as ModelHelper
+users, err := userHelper.ModelSelect(nil).List(ctx, db)
+```
+
+### Transaction Support
+
+```go
+tx, err := db.BeginTx(ctx, nil)
+if err != nil {
+    return err
+}
+defer tx.Rollback()
+
+// Use transaction as Conn
+_, err = userHelper.ModelInsert([]string{"name"}, &User{Name: "John"}).Exec(ctx, tx)
+if err != nil {
+    return err
+}
+
+_, err = userHelper.ModelUpdate(&User{ID: 1, Name: "John"}, []string{"name"}).
+    Where("id = ?", 1).Exec(ctx, tx)
+if err != nil {
+    return err
+}
+
+return tx.Commit()
+```
+
+## Helper Examples (Raw SQL)
+
+```go
+h := sqlhelper.Helper{}
+
+// Basic select
+sql, _ := h.Select([]string{"id", "name"}, "users").ToSql()
+
+// With WHERE
+sql, _ = h.Select([]string{"id", "name"}, "users").
+    Where("age > ?", 18).
+    ToSql()
+
+// With alias
+h = sqlhelper.Helper{}.Alias("u")
+sql, _ = h.Select([]string{"id", "name"}, "users").ToSql()
+// SELECT `u`.`id`, `u`.`name` FROM `users` AS `u`
+
+// Custom escape (PostgreSQL)
+h = sqlhelper.Helper{}.WithEscapeFunc(func(key string, table bool) string {
+    return fmt.Sprintf("\"%s\"", key)
+})
+sql, _ = h.Select([]string{"id", "name"}, "users").ToSql()
+// SELECT "id", "name" FROM "users"
 ```
 
 ## API Reference
 
 ### Helper
 
-- `Helper{}.EscapeColumn(column)` - Escape a column name
-- `Helper{}.EscapeTable(table)` - Escape a table name
-- `Helper{}.EscapeColumns(columns)` - Escape multiple column names
-- `Helper{}.Alias(alias)` - Set table alias
-- `Helper{}.WithEscapeFunc(fn)` - Set custom escape function
-- `Helper{}.Select(columns, table, opts...)` - Create SELECT query
-- `Helper{}.SelectDistinct(column, table)` - Create SELECT DISTINCT query
-- `Helper{}.Insert(table, columns, values...)` - Create INSERT query
-- `Helper{}.Update(table, values, opts...)` - Create UPDATE query
-
-### ModelHelper
-
-- `NewModelHelper(alloc func() T)` - Create new ModelHelper
-- `ModelPagination(ctx, conn, query)` - Paginated query
-- `ModelPaginationWhere(ctx, conn, query, pred, args...)` - Paginated query with WHERE
-- `ModelSelect(columns, opts...)` - Create SELECT query
-- `ModelSelectWhere(pred, args...)` - Create SELECT with WHERE
-- `ModelInsert(columns, models...)` - Insert records
-- `ModelInserts(columns, models)` - Insert slice of records
-- `ModelUpdate(model, columns)` - Update record by ID
-- `ModelDistinctPagination(ctx, conn, query, column)` - DISTINCT pagination
-- `ModelHelper{}.Alias(alias)` - Set table alias for query
-- `ModelHelper{}.Columns(filter)` - Get column names with optional filter
-- `ModelHelper{}.Convert(mapper)` - Convert to MappingModel
+| Method | Description |
+|--------|-------------|
+| `Select(columns, table)` | Create SELECT query |
+| `Insert(table, columns, values...)` | Create INSERT query |
+| `Update(table, values)` | Create UPDATE query |
+| `Alias(alias)` | Set table alias |
+| `EscapeColumn(column)` | Escape column name |
+| `EscapeTable(table)` | Escape table name |
+| `WithEscapeFunc(fn)` | Set custom escape function |
 
 ### SelectExecutor
 
-- `One(ctx, conn)` - Get single model
-- `List(ctx, conn)` - Get all models
-- `Where(pred, args...)` - Add WHERE clause
-- `WithOptions(opts...)` - Apply builder options
-- `ToSql()` - Get SQL and args
-- `Count(ctx, conn)` - Get total count
-- `Pagination(ctx, conn, query, alloc)` - Paginated query
-- `PaginationModels(ctx, conn, query)` - Paginated models
-- `PaginationStrings(ctx, conn, query)` - Paginated single column
-- `PaginationMaps(ctx, conn, query)` - Paginated map results
-- `QueryRowScan(ctx, conn, alloc)` - Custom scan for single row
-- `QueryRowsScans(ctx, conn, alloc)` - Custom scan for multiple rows
-- `QueryRowScanModel(ctx, conn, alloc)` - Scan to Model
-- `QueryRowsScansModels(ctx, conn, alloc)` - Scan multiple to Models
-- `QueryStrings(ctx, conn)` - Get string values
-- `QueryTotals(ctx, conn, alloc, total)` - Query with total count
+| Method | Description |
+|--------|-------------|
+| `Where(pred, args...)` | Add WHERE clause |
+| `WithOptions(opts...)` | Apply builder options |
+| `WithQueries(queries...)` | Apply Query options |
+| `ToSql()` | Get SQL and args |
+| `QueryRow(ctx, conn)` | Execute and return single row |
+| `QueryRows(ctx, conn)` | Execute and return multiple rows |
+| `Count(ctx, conn)` | Get total count |
+| `Pagination(ctx, conn, query, alloc)` | Paginated query |
 
-### InsertExecutor
+### ModelHelper
 
-- `Exec(ctx, conn)` - Execute insert
-- `ExecLastInsertId(ctx, conn)` - Execute and return last insert ID
-- `ToSql()` - Get SQL and args
-- `WithOptions(opts...)` - Apply builder options
-- `OnDuplicateUpdateValues(columns...)` - Add ON DUPLICATE KEY UPDATE
+| Method | Description |
+|--------|-------------|
+| `NewModelHelper(alloc)` | Create new ModelHelper |
+| `ModelSelect(columns)` | Create SELECT query |
+| `ModelSelectWhere(pred, args...)` | Create SELECT with WHERE |
+| `ModelPagination(ctx, conn, query)` | Paginated query |
+| `ModelPaginationWhere(ctx, conn, query, pred, args...)` | Paginated query with WHERE |
+| `ModelInsert(columns, models...)` | Insert records |
+| `ModelInserts(columns, models)` | Insert slice of records |
+| `ModelUpdate(model, columns)` | Update record |
+| `Alias(alias)` | Set table alias |
+| `Columns(filter)` | Get column names with optional filter |
 
-### UpdateExecutor
+### Query Interface
 
-- `Exec(ctx, conn)` - Execute update
-- `ExecRowsAffected(ctx, conn)` - Execute and return affected rows
-- `ToSql()` - Get SQL and args
-- `Where(pred, args...)` - Add WHERE clause
-- `Limit(limit)` - Set row limit
-- `WithOptions(opts...)` - Apply builder options
+```go
+// Query for SQL clause injection
+type Query interface {
+    Option(helper Helper) SelectBuilderOption
+}
+
+// PaginationQuery extends Query with count control
+type PaginationQuery interface {
+    Query
+    Countless() bool
+}
+```
 
 ### Model Interface
 
@@ -301,22 +537,3 @@ type Model interface {
     FieldMapping(dst map[string]any)
 }
 ```
-
-### PaginationQuery Interface
-
-```go
-type PaginationQuery interface {
-    Option(helper Helper) SelectBuilderOption
-    Countless() bool
-}
-```
-
-### Custom Escape Function
-
-```go
-type EscapeFunc func(key string, table bool) string
-```
-
-- `key`: The table or column name to escape
-- `table`: true if escaping a table name, false for column name
-- Returns the escaped string

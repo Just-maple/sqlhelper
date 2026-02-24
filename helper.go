@@ -7,11 +7,17 @@ import (
 	"github.com/Masterminds/squirrel"
 )
 
-// PaginationQuery defines the interface for pagination queries.
-// Implement this interface to define custom pagination logic.
-type PaginationQuery interface {
-	// Option returns a SelectBuilderOption that applies pagination (e.g., LIMIT/OFFSET)
+// Query defines the interface for SQL clause injection.
+// Implement this interface to define custom WHERE/SORT/JOIN logic.
+type Query interface {
+	// Option returns a SelectBuilderOption that applies SQL clauses (e.g., WHERE/SORT/JOIN)
 	Option(helper Helper) SelectBuilderOption
+}
+
+// PaginationQuery extends Query with pagination count control.
+// Implement this interface for pagination queries that need count control.
+type PaginationQuery interface {
+	Query
 	// Countless returns true if total count should be skipped
 	Countless() bool
 }
