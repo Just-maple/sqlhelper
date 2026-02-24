@@ -266,6 +266,22 @@ func TestExample_ModelHelper_Options(t *testing.T) {
 			wantSQL:  "SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u` JOIN orders o ON o.user_id = u.id LEFT JOIN profiles p ON p.user_id = u.id",
 			wantArgs: 0,
 		},
+		{
+			name: "ModelSelect Distinct",
+			buildSQL: func() (string, []any, error) {
+				return h.SelectDistinct("name", "users").ToSql()
+			},
+			wantSQL:  "SELECT DISTINCT(`name`) FROM `users`",
+			wantArgs: 0,
+		},
+		{
+			name: "ModelSelect DistinctWithAlias",
+			buildSQL: func() (string, []any, error) {
+				return hAlias.SelectDistinct("name", "users").ToSql()
+			},
+			wantSQL:  "SELECT DISTINCT(`u`.`name`) FROM `users` AS `u`",
+			wantArgs: 0,
+		},
 	}
 
 	for _, tt := range tests {

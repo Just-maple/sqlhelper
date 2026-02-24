@@ -114,8 +114,8 @@ func (h Helper) EscapeTable(table string) string {
 // If an alias is set, returns "alias.column" format.
 func (h Helper) EscapeColumn(column string) string {
 	r := h.escape(column, false)
-	if h.alias != "" {
-		return h.escape(h.alias, false) + "." + r
+	if h.alias != "" && !strings.ContainsAny(r, "()") {
+		r = h.escape(h.alias, true) + "." + r
 	}
 	return r
 }

@@ -16,13 +16,7 @@ func (h Helper) Alias(alias string) Helper {
 
 // SelectDistinct creates a SELECT DISTINCT query for the specified column.
 func (h Helper) SelectDistinct(column, table string) SelectExecutor {
-	escapedCol := h.EscapeColumn(column)
-	builder := squirrel.Select(fmt.Sprintf("DISTINCT(%s)", escapedCol)).From(h.EscapeTable(table))
-	return SelectExecutor{
-		helper:  h,
-		builder: builder,
-		columns: []string{column},
-	}
+	return h.Select([]string{fmt.Sprintf("DISTINCT(%s)", h.EscapeColumn(column))}, table)
 }
 
 // Select creates a new SelectExecutor for the specified columns and table.

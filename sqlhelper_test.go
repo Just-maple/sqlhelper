@@ -114,6 +114,30 @@ func TestSelectExecutor(t *testing.T) {
 			wantArgs: 0,
 		},
 		{
+			name: "Alias",
+			buildSQL: func() (string, []any, error) {
+				return Helper{}.Alias("u").Select([]string{"id", "name"}, "users").ToSql()
+			},
+			wantSQL:  "SELECT `u`.`id`, `u`.`name` FROM `users` AS `u`",
+			wantArgs: 0,
+		},
+		{
+			name: "AliasSelectDistinct",
+			buildSQL: func() (string, []any, error) {
+				return Helper{}.Alias("u").Select([]string{"DISTINCT(user)"}, "users").ToSql()
+			},
+			wantSQL:  "SELECT DISTINCT(user) FROM `users` AS `u`",
+			wantArgs: 0,
+		},
+		{
+			name: "AliasSelectDistinct2",
+			buildSQL: func() (string, []any, error) {
+				return Helper{}.Alias("u").Select([]string{"DISTINCT(`u`.`user`)"}, "users").ToSql()
+			},
+			wantSQL:  "SELECT DISTINCT(`u`.`user`) FROM `users` AS `u`",
+			wantArgs: 0,
+		},
+		{
 			name: "Where",
 			buildSQL: func() (string, []any, error) {
 				return Helper{}.Select([]string{"id", "name"}, "users").Where("age > ?", 18).ToSql()
