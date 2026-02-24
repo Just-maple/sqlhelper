@@ -97,7 +97,7 @@ func (h Helper) MapColumns(model Model, columns *[]string) Mapper {
 
 // countOption is a SelectBuilderOption that converts a select query to a count query
 var countOption = func(builder SelectBuilder) SelectBuilder {
-	return squirrel.Select("COUNT(1)").FromSelect(builder.RemoveColumns().Columns("1"), "t")
+	return squirrel.Select("COUNT(1)").FromSelect(builder, "t")
 }
 
 // EscapeTable escapes a table name for safe SQL usage.
