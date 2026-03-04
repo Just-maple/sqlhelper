@@ -76,7 +76,7 @@ func (m MappingModel[T]) FieldMapping(mapping map[string]any) {
 
 // NewMappingModelHelper creates a ModelHelper using a custom allocation function
 // that returns both table name and field mappings.
-func NewMappingModelHelper[T any](alloc func(*T) (table string, mapping map[string]any)) ModelHelper[*MappingModel[T], MappingModel[T]] {
+func NewMappingModelHelper[T any](alloc func(*T) (table string, mapping map[string]any)) ModelHelper[MappingModel[T], *MappingModel[T]] {
 	return NewModelHelper(NewMappingModel(alloc))
 }
 
@@ -94,7 +94,7 @@ func NewMappingModel[T any](alloc func(*T) (table string, mapping map[string]any
 }
 
 // Convert creates a MappingModel allocation function from a mapper function.
-func (h ModelHelper[M, T]) Convert(mapper func(*T) map[string]any) func() MappingModel[T] {
+func (h ModelHelper[T, M]) Convert(mapper func(*T) map[string]any) func() MappingModel[T] {
 	return NewMappingModel(func(m *T) (table string, mapping map[string]any) {
 		*m = h.alloc()
 		return M(m).TableName(), mapper(m)

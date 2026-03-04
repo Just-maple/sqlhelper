@@ -359,22 +359,22 @@ func TestUpdateExecutor(t *testing.T) {
 func TestModelHelper(t *testing.T) {
 	tests := []struct {
 		name     string
-		helper   ModelHelper[*testUser, testUser]
-		buildSQL func(ModelHelper[*testUser, testUser]) (string, []any, error)
+		helper   ModelHelper[testUser, *testUser]
+		buildSQL func(ModelHelper[testUser, *testUser]) (string, []any, error)
 		wantSQL  string
 		wantArgs int
 	}{
 		{
 			name:     "Select",
 			helper:   NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) { return h.ModelSelect(nil).ToSql() },
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) { return h.ModelSelect(nil).ToSql() },
 			wantSQL:  "SELECT `age`, `email`, `id`, `name` FROM `users`",
 			wantArgs: 0,
 		},
 		{
 			name:   "SelectColumns",
 			helper: NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) {
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) {
 				return h.ModelSelect([]string{"id", "name"}).ToSql()
 			},
 			wantSQL:  "SELECT `id`, `name` FROM `users`",
@@ -383,7 +383,7 @@ func TestModelHelper(t *testing.T) {
 		{
 			name:   "Where",
 			helper: NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) {
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) {
 				return h.ModelSelect(nil).Where("age > ?", 18).ToSql()
 			},
 			wantSQL:  "SELECT `age`, `email`, `id`, `name` FROM `users` WHERE age > ?",
@@ -392,7 +392,7 @@ func TestModelHelper(t *testing.T) {
 		{
 			name:   "Insert",
 			helper: NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) {
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) {
 				return h.ModelInsert([]string{"name", "email"}, &testUser{Name: "John", Email: "john@test.com"}).ToSql()
 			},
 			wantSQL:  "INSERT INTO `users` (`name`,`email`) VALUES (?,?)",
@@ -401,7 +401,7 @@ func TestModelHelper(t *testing.T) {
 		{
 			name:   "InsertOnDuplicate",
 			helper: NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) {
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) {
 				return h.ModelInsert([]string{"name", "email"}, &testUser{Name: "John", Email: "john@test.com"}).
 					OnDuplicateUpdateValues("name").ToSql()
 			},
@@ -411,7 +411,7 @@ func TestModelHelper(t *testing.T) {
 		{
 			name:   "Update",
 			helper: NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) {
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) {
 				return h.ModelUpdate(&testUser{ID: 1, Name: "John"}, []string{"name"}).Where("id = ?", 1).ToSql()
 			},
 			wantSQL:  "UPDATE `users` SET `name` = ? WHERE id = ? LIMIT 1",
@@ -420,7 +420,7 @@ func TestModelHelper(t *testing.T) {
 		{
 			name:     "Alias",
 			helper:   NewModelHelper(func() testUser { return testUser{} }).Alias("u"),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) { return h.ModelSelect(nil).ToSql() },
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) { return h.ModelSelect(nil).ToSql() },
 			wantSQL:  "SELECT `u`.`age`, `u`.`email`, `u`.`id`, `u`.`name` FROM `users` AS `u`",
 			wantArgs: 0,
 		},

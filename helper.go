@@ -31,7 +31,7 @@ type modelStruct[T any] interface {
 
 // ModelHelper is a generic helper for model-based database operations.
 // M is the helper type itself (for method chaining), T is the model struct type.
-type ModelHelper[M modelStruct[T], T any] struct {
+type ModelHelper[T any, M modelStruct[T]] struct {
 	Helper
 
 	// allocFunc is the function to allocate a new instance of T
@@ -40,8 +40,8 @@ type ModelHelper[M modelStruct[T], T any] struct {
 
 // NewModelHelper creates a new ModelHelper with the given allocation function.
 // alloc is a function that returns a new instance of type T.
-func NewModelHelper[M modelStruct[T], T any](alloc func() T) ModelHelper[M, T] {
-	return ModelHelper[M, T]{allocFunc: alloc}
+func NewModelHelper[T any, M modelStruct[T]](alloc func() T) ModelHelper[T, M] {
+	return ModelHelper[T, M]{allocFunc: alloc}
 }
 
 // Type aliases for squirrel builders
@@ -60,7 +60,7 @@ type (
 
 // alloc allocates a new instance of T using the allocFunc.
 // If allocFunc is nil, returns the zero value of T.
-func (h ModelHelper[M, T]) alloc() (t T) {
+func (h ModelHelper[T, M]) alloc() (t T) {
 	if h.allocFunc != nil {
 		return h.allocFunc()
 	}

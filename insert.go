@@ -22,7 +22,7 @@ func (h Helper) Insert(table string, columns []string, values ...[]any) InsertEx
 }
 
 // ModelInsert inserts multiple model instances into the database.
-func (h ModelHelper[M, T]) ModelInsert(columns []string, models ...M) InsertExecutor {
+func (h ModelHelper[T, M]) ModelInsert(columns []string, models ...M) InsertExecutor {
 	var mapping Mapper
 	values := make([][]any, 0, len(models))
 	table := ""
@@ -37,7 +37,7 @@ func (h ModelHelper[M, T]) ModelInsert(columns []string, models ...M) InsertExec
 }
 
 // ModelInserts inserts a slice of model instances into the database.
-func (h ModelHelper[M, T]) ModelInserts(columns []string, models []T) InsertExecutor {
+func (h ModelHelper[T, M]) ModelInserts(columns []string, models []T) InsertExecutor {
 	ms := make([]M, 0, len(models))
 	for i := range models {
 		ms = append(ms, M(&models[i]))

@@ -105,22 +105,22 @@ func (q *testWithOrderQuery) Option(h Helper) SelectBuilderOption {
 func TestExample_ModelHelper_BasicSelect(t *testing.T) {
 	tests := []struct {
 		name     string
-		helper   ModelHelper[*testUser, testUser]
-		buildSQL func(ModelHelper[*testUser, testUser]) (string, []any, error)
+		helper   ModelHelper[testUser, *testUser]
+		buildSQL func(ModelHelper[testUser, *testUser]) (string, []any, error)
 		wantSQL  string
 		wantArgs int
 	}{
 		{
 			name:     "ModelSelect all",
 			helper:   NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) { return h.ModelSelect(nil).ToSql() },
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) { return h.ModelSelect(nil).ToSql() },
 			wantSQL:  "SELECT `age`, `email`, `id`, `name` FROM `users`",
 			wantArgs: 0,
 		},
 		{
 			name:   "ModelSelect columns",
 			helper: NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) {
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) {
 				return h.ModelSelect([]string{"id", "name"}).ToSql()
 			},
 			wantSQL:  "SELECT `id`, `name` FROM `users`",
@@ -129,7 +129,7 @@ func TestExample_ModelHelper_BasicSelect(t *testing.T) {
 		{
 			name:   "ModelSelectWhere",
 			helper: NewModelHelper(func() testUser { return testUser{} }),
-			buildSQL: func(h ModelHelper[*testUser, testUser]) (string, []any, error) {
+			buildSQL: func(h ModelHelper[testUser, *testUser]) (string, []any, error) {
 				return h.ModelSelectWhere("id = ?", 1).ToSql()
 			},
 			wantSQL:  "SELECT `age`, `email`, `id`, `name` FROM `users` WHERE id = ?",

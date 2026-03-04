@@ -15,7 +15,7 @@ type UpdateExecutor struct {
 }
 
 // ModelUpdate updates a single model instance in the database.
-func (h ModelHelper[M, T]) ModelUpdate(model M, columns []string, opts ...UpdateBuilderOption) UpdateExecutor {
+func (h ModelHelper[T, M]) ModelUpdate(model M, columns []string, opts ...UpdateBuilderOption) UpdateExecutor {
 	mapping := h.MapColumns(model, &columns)
 	updateMapping := make(map[string]any, len(columns))
 	for _, col := range columns {

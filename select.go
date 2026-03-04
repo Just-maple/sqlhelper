@@ -228,15 +228,15 @@ func (exec SelectExecutor) PaginationModels(ctx context.Context, conn Conn, quer
 }
 
 // Alias sets a table alias for the ModelHelper.
-func (h ModelHelper[M, T]) Alias(alias string) ModelHelper[M, T] {
-	return ModelHelper[M, T]{
+func (h ModelHelper[T, M]) Alias(alias string) ModelHelper[T, M] {
+	return ModelHelper[T, M]{
 		Helper:    h.Helper.Alias(alias),
 		allocFunc: h.allocFunc,
 	}
 }
 
 // Columns returns the column names from the model, optionally filtered by a function.
-func (h ModelHelper[M, T]) Columns(filter func(string) bool) (columns []string) {
+func (h ModelHelper[T, M]) Columns(filter func(string) bool) (columns []string) {
 	t := h.alloc()
 	if h.MapColumns(M(&t), &columns); filter != nil {
 		valid := 0
@@ -252,51 +252,51 @@ func (h ModelHelper[M, T]) Columns(filter func(string) bool) (columns []string) 
 }
 
 // ModelSelect creates a new ModelSelectExecutor for the model.
-func (h ModelHelper[M, T]) ModelSelect(columns []string, opts ...SelectBuilderOption) ModelSelectExecutor[M, T] {
+func (h ModelHelper[T, M]) ModelSelect(columns []string, opts ...SelectBuilderOption) ModelSelectExecutor[T, M] {
 	t := h.alloc()
 	model := M(&t)
 	h.MapColumns(model, &columns)
 	exec := h.Select(columns, model.TableName(), opts...)
-	return ModelSelectExecutor[M, T]{
+	return ModelSelectExecutor[T, M]{
 		exec:  exec,
 		alloc: h.alloc,
 	}
 }
 
 // ModelSelectWhere creates a ModelSelectExecutor with an initial WHERE clause.
-func (h ModelHelper[M, T]) ModelSelectWhere(pred any, args ...any) ModelSelectExecutor[M, T] {
+func (h ModelHelper[T, M]) ModelSelectWhere(pred any, args ...any) ModelSelectExecutor[T, M] {
 	return h.ModelSelect(nil).Where(pred, args...)
 }
 
 // ModelPagination performs a paginated query on the model.
-func (h ModelHelper[M, T]) ModelPagination(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (models []T, total int, err error) {
+func (h ModelHelper[T, M]) ModelPagination(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (models []T, total int, err error) {
 	return h.ModelSelect(nil).Pagination(ctx, conn, query, opts...)
 }
 
 // ModelPaginationWhere performs a paginated query with WHERE clause on the model.
-func (h ModelHelper[M, T]) ModelPaginationWhere(ctx context.Context, conn Conn, query PaginationQuery, pred any, args ...any) (models []T, total int, err error) {
+func (h ModelHelper[T, M]) ModelPaginationWhere(ctx context.Context, conn Conn, query PaginationQuery, pred any, args ...any) (models []T, total int, err error) {
 	return h.ModelSelectWhere(pred, args...).Pagination(ctx, conn, query)
 }
 
 // ModelDistinctPagination performs a paginated DISTINCT query on a single column.
-func (h ModelHelper[M, T]) ModelDistinctPagination(ctx context.Context, conn Conn, query PaginationQuery, column string, opts ...SelectBuilderOption) (vals []string, total int, err error) {
+func (h ModelHelper[T, M]) ModelDistinctPagination(ctx context.Context, conn Conn, query PaginationQuery, column string, opts ...SelectBuilderOption) (vals []string, total int, err error) {
 	model := h.alloc()
 	return h.SelectDistinct(column, M(&model).TableName()).PaginationStrings(ctx, conn, query, opts...)
 }
 
 // ModelSelectExecutor is a type-safe executor for model-based SELECT queries.
-type ModelSelectExecutor[M modelStruct[T], T any] struct {
+type ModelSelectExecutor[T any, M modelStruct[T]] struct {
 	exec  SelectExecutor
 	alloc func() T
 }
 
 // SelectExecutor returns the underlying SelectExecutor.
-func (exec ModelSelectExecutor[M, T]) SelectExecutor() SelectExecutor {
+func (exec ModelSelectExecutor[T, M]) SelectExecutor() SelectExecutor {
 	return exec.exec
 }
 
 // One returns a single model instance.
-func (exec ModelSelectExecutor[M, T]) One(ctx context.Context, conn Conn) (model T, err error) {
+func (exec ModelSelectExecutor[T, M]) One(ctx context.Context, conn Conn) (model T, err error) {
 	err = exec.exec.QueryRowScanModel(ctx, conn, func() Model {
 		model = exec.alloc()
 		return M(&model)
@@ -305,7 +305,7 @@ func (exec ModelSelectExecutor[M, T]) One(ctx context.Context, conn Conn) (model
 }
 
 // List returns all model instances matching the query.
-func (exec ModelSelectExecutor[M, T]) List(ctx context.Context, conn Conn) (models []T, err error) {
+func (exec ModelSelectExecutor[T, M]) List(ctx context.Context, conn Conn) (models []T, err error) {
 	err = exec.exec.QueryRowsScansModels(ctx, conn, func() Model {
 		models = append(models, exec.alloc())
 		return M(&models[len(models)-1])
@@ -314,12 +314,12 @@ func (exec ModelSelectExecutor[M, T]) List(ctx context.Context, conn Conn) (mode
 }
 
 // ToSql converts the query to SQL string and arguments.
-func (exec ModelSelectExecutor[M, T]) ToSql() (string, []any, error) {
+func (exec ModelSelectExecutor[T, M]) ToSql() (string, []any, error) {
 	return exec.SelectExecutor().ToSql()
 }
 
 // Pagination returns paginated model instances and total count.
-func (exec ModelSelectExecutor[M, T]) Pagination(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (models []T, total int, err error) {
+func (exec ModelSelectExecutor[T, M]) Pagination(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (models []T, total int, err error) {
 	total, err = exec.exec.PaginationModels(ctx, conn, query, func() Model {
 		models = append(models, exec.alloc())
 		return M(&models[len(models)-1])
@@ -328,15 +328,15 @@ func (exec ModelSelectExecutor[M, T]) Pagination(ctx context.Context, conn Conn,
 }
 
 // Where adds a WHERE clause to the query.
-func (exec ModelSelectExecutor[M, T]) Where(pred any, args ...any) ModelSelectExecutor[M, T] {
+func (exec ModelSelectExecutor[T, M]) Where(pred any, args ...any) ModelSelectExecutor[T, M] {
 	return exec.WithOptions(func(builder SelectBuilder) SelectBuilder {
 		return builder.Where(pred, args...)
 	})
 }
 
 // WithOptions applies additional builder options to the query.
-func (exec ModelSelectExecutor[M, T]) WithOptions(opts ...SelectBuilderOption) ModelSelectExecutor[M, T] {
-	return ModelSelectExecutor[M, T]{
+func (exec ModelSelectExecutor[T, M]) WithOptions(opts ...SelectBuilderOption) ModelSelectExecutor[T, M] {
+	return ModelSelectExecutor[T, M]{
 		exec:  exec.exec.WithOptions(opts...),
 		alloc: exec.alloc,
 	}
