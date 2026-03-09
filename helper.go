@@ -14,14 +14,6 @@ type Query interface {
 	Option(helper Helper) SelectBuilderOption
 }
 
-// PaginationQuery extends Query with pagination count control.
-// Implement this interface for pagination queries that need count control.
-type PaginationQuery interface {
-	Query
-	// Countless returns true if total count should be skipped
-	Countless() bool
-}
-
 // modelStruct defines the constraint for model types.
 // T must be a pointer to a struct that implements Model.
 type modelStruct[T any] interface {

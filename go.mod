@@ -2,10 +2,7 @@ module github.com/Just-maple/sqlhelper
 
 go 1.18
 
-require (
-	github.com/Masterminds/squirrel v1.5.4
-	golang.org/x/sync v0.5.0
-)
+require github.com/Masterminds/squirrel v1.5.4
 
 require (
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect

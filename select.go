@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Masterminds/squirrel"
-	"golang.org/x/sync/errgroup"
 )
 
 // Alias sets a table alias for the Helper.
@@ -154,79 +153,6 @@ func (exec SelectExecutor) Count(ctx context.Context, conn Conn) (total int, err
 	return
 }
 
-// QueryTotals executes the query and optionally gets total count concurrently.
-// The alloc function is called for each row to provide values for scanning.
-func (exec SelectExecutor) QueryTotals(ctx context.Context, conn Conn, alloc func(columns []string) []any, total *int) (err error) {
-	group := errgroup.Group{}
-	group.Go(func() (err error) {
-		return exec.QueryRowsScans(ctx, conn, alloc)
-	})
-	if total != nil {
-		group.Go(func() (err error) {
-			*total, err = exec.WithOptions(func(builder SelectBuilder) SelectBuilder {
-				return builder.Limit(10000).Offset(0)
-			}).Count(ctx, conn)
-			return
-		})
-	}
-	return group.Wait()
-}
-
-// QueryTotalsModels executes the query and optionally gets total count concurrently for Models.
-func (exec SelectExecutor) QueryTotalsModels(ctx context.Context, conn Conn, alloc func() Model, total *int) (err error) {
-	err = exec.QueryTotals(ctx, conn, ConvertModelMapping(alloc), total)
-	return
-}
-
-// PaginationStrings returns paginated string values and total count.
-func (exec SelectExecutor) PaginationStrings(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (rets []string, total int, err error) {
-	total, err = exec.Pagination(ctx, conn, query, func(columns []string) []any {
-		rets = append(rets, "")
-		return []any{&rets[len(rets)-1]}
-	}, opts...)
-	return
-}
-
-// PaginationMaps returns paginated map results and total count.
-func (exec SelectExecutor) PaginationMaps(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (rets []map[string]any, total int, err error) {
-	total, err = exec.Pagination(ctx, conn, query, func(columns []string) []any {
-		ret := make(map[string]any, len(columns))
-		rets = append(rets, ret)
-		values := make([]any, 0, len(columns))
-		for _, column := range columns {
-			ret[column] = new(any)
-			values = append(values, ret[column])
-		}
-		return values
-	}, opts...)
-	return
-}
-
-// Pagination executes a paginated query and returns total count.
-// The alloc function is called for each row to provide values for scanning.
-func (exec SelectExecutor) Pagination(ctx context.Context, conn Conn, query PaginationQuery, alloc func(columns []string) []any, opts ...SelectBuilderOption) (total int, err error) {
-	var ptr *int
-	count := 0
-	if !query.Countless() {
-		ptr = &total
-	}
-	if err = exec.WithQueries(query).WithOptions(opts...).QueryTotals(ctx, conn, func(columns []string) []any {
-		count++
-		return alloc(columns)
-	}, ptr); err != nil {
-		return
-	}
-	if total < count {
-		total = count
-	}
-	return
-}
-
-// PaginationModels returns paginated Model instances and total count.
-func (exec SelectExecutor) PaginationModels(ctx context.Context, conn Conn, query PaginationQuery, alloc func() Model, opts ...SelectBuilderOption) (total int, err error) {
-	return exec.Pagination(ctx, conn, query, ConvertModelMapping(alloc), opts...)
-}
-
 // Alias sets a table alias for the ModelHelper.
 func (h ModelHelper[T, M]) Alias(alias string) ModelHelper[T, M] {
 	return ModelHelper[T, M]{
@@ -268,22 +194,6 @@ func (h ModelHelper[T, M]) ModelSelectWhere(pred any, args ...any) ModelSelectEx
 	return h.ModelSelect(nil).Where(pred, args...)
 }
 
-// ModelPagination performs a paginated query on the model.
-func (h ModelHelper[T, M]) ModelPagination(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (models []T, total int, err error) {
-	return h.ModelSelect(nil).Pagination(ctx, conn, query, opts...)
-}
-
-// ModelPaginationWhere performs a paginated query with WHERE clause on the model.
-func (h ModelHelper[T, M]) ModelPaginationWhere(ctx context.Context, conn Conn, query PaginationQuery, pred any, args ...any) (models []T, total int, err error) {
-	return h.ModelSelectWhere(pred, args...).Pagination(ctx, conn, query)
-}
-
-// ModelDistinctPagination performs a paginated DISTINCT query on a single column.
-func (h ModelHelper[T, M]) ModelDistinctPagination(ctx context.Context, conn Conn, query PaginationQuery, column string, opts ...SelectBuilderOption) (vals []string, total int, err error) {
-	model := h.alloc()
-	return h.SelectDistinct(column, M(&model).TableName()).PaginationStrings(ctx, conn, query, opts...)
-}
-
 // ModelSelectExecutor is a type-safe executor for model-based SELECT queries.
 type ModelSelectExecutor[T any, M modelStruct[T]] struct {
 	exec  SelectExecutor
@@ -316,15 +226,6 @@ func (exec ModelSelectExecutor[T, M]) List(ctx context.Context, conn Conn) (mode
 // ToSql converts the query to SQL string and arguments.
 func (exec ModelSelectExecutor[T, M]) ToSql() (string, []any, error) {
 	return exec.SelectExecutor().ToSql()
-}
-
-// Pagination returns paginated model instances and total count.
-func (exec ModelSelectExecutor[T, M]) Pagination(ctx context.Context, conn Conn, query PaginationQuery, opts ...SelectBuilderOption) (models []T, total int, err error) {
-	total, err = exec.exec.PaginationModels(ctx, conn, query, func() Model {
-		models = append(models, exec.alloc())
-		return M(&models[len(models)-1])
-	}, opts...)
-	return
 }
 
 // Where adds a WHERE clause to the query.
