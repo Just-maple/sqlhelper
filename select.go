@@ -149,7 +149,7 @@ func (exec SelectExecutor) QueryRowsScansModels(ctx context.Context, conn Conn, 
 
 // Count returns the total number of rows matching the query.
 func (exec SelectExecutor) Count(ctx context.Context, conn Conn) (total int, err error) {
-	err = exec.WithOptions(countOption).QueryRow(ctx, conn).Scan(&total)
+	err = exec.WithOptions(CountOption).QueryRow(ctx, conn).Scan(&total)
 	return
 }
 
