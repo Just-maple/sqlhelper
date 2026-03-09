@@ -242,3 +242,11 @@ func (exec ModelSelectExecutor[T, M]) WithOptions(opts ...SelectBuilderOption) M
 		alloc: exec.alloc,
 	}
 }
+
+// WithOptions applies additional builder options to the query.
+func (exec ModelSelectExecutor[T, M]) WithQueries(queries ...Query) ModelSelectExecutor[T, M] {
+	return ModelSelectExecutor[T, M]{
+		exec:  exec.exec.WithQueries(queries...),
+		alloc: exec.alloc,
+	}
+}
