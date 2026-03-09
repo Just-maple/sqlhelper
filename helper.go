@@ -14,16 +14,16 @@ type Query interface {
 	Option(helper Helper) SelectBuilderOption
 }
 
-// modelStruct defines the constraint for model types.
+// ModelPointer defines the constraint for model types.
 // T must be a pointer to a struct that implements Model.
-type modelStruct[T any] interface {
+type ModelPointer[T any] interface {
 	*T
 	Model
 }
 
 // ModelHelper is a generic helper for model-based database operations.
 // M is the helper type itself (for method chaining), T is the model struct type.
-type ModelHelper[T any, M modelStruct[T]] struct {
+type ModelHelper[T any, M ModelPointer[T]] struct {
 	Helper
 
 	// allocFunc is the function to allocate a new instance of T
@@ -32,7 +32,7 @@ type ModelHelper[T any, M modelStruct[T]] struct {
 
 // NewModelHelper creates a new ModelHelper with the given allocation function.
 // alloc is a function that returns a new instance of type T.
-func NewModelHelper[T any, M modelStruct[T]](alloc func() T) ModelHelper[T, M] {
+func NewModelHelper[T any, M ModelPointer[T]](alloc func() T) ModelHelper[T, M] {
 	return ModelHelper[T, M]{allocFunc: alloc}
 }
 

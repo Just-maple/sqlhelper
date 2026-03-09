@@ -195,7 +195,7 @@ func (h ModelHelper[T, M]) ModelSelectWhere(pred any, args ...any) ModelSelectEx
 }
 
 // ModelSelectExecutor is a type-safe executor for model-based SELECT queries.
-type ModelSelectExecutor[T any, M modelStruct[T]] struct {
+type ModelSelectExecutor[T any, M ModelPointer[T]] struct {
 	exec  SelectExecutor
 	alloc func() T
 }
