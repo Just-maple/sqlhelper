@@ -135,3 +135,11 @@ func (h Helper) WithEscapeFunc(fn EscapeFunc) Helper {
 	h.escapeFunc = fn
 	return h
 }
+
+func (h Helper) SelectWhere(pred any, args ...any) SelectBuilderOption {
+	return func(builder SelectBuilder) SelectBuilder { return builder.Where(pred, args...) }
+}
+
+func (h Helper) UpdateWhere(pred any, args ...any) UpdateBuilderOption {
+	return func(builder UpdateBuilder) UpdateBuilder { return builder.Where(pred, args...) }
+}
