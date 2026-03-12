@@ -164,8 +164,38 @@ func (w ChainableBuilder[Executor, _, Builder]) Where(pred any, args ...any) Exe
 	})
 }
 
+func (w ChainableBuilder[Executor, _, Builder]) Offset(v uint64) Executor {
+	return w.WithOptions(func(builder Builder) Builder {
+		return builder.Offset(v)
+	})
+}
+
 func (w ChainableBuilder[Executor, _, Builder]) Limit(v uint64) Executor {
 	return w.WithOptions(func(builder Builder) Builder {
 		return builder.Limit(v)
+	})
+}
+
+func (w ChainableBuilder[Executor, _, Builder]) Prefix(v string, args ...any) Executor {
+	return w.WithOptions(func(builder Builder) Builder {
+		return builder.Prefix(v, args...)
+	})
+}
+
+func (w ChainableBuilder[Executor, _, Builder]) Suffix(v string, args ...any) Executor {
+	return w.WithOptions(func(builder Builder) Builder {
+		return builder.Suffix(v, args...)
+	})
+}
+
+func (w ChainableBuilder[Executor, _, Builder]) From(v string) Executor {
+	return w.WithOptions(func(builder Builder) Builder {
+		return builder.From(v)
+	})
+}
+
+func (w ChainableBuilder[Executor, _, Builder]) FromSelect(expr SelectBuilder, alias string) Executor {
+	return w.WithOptions(func(builder Builder) Builder {
+		return builder.FromSelect(expr, alias)
 	})
 }
