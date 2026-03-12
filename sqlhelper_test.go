@@ -58,7 +58,7 @@ func TestHelper(t *testing.T) {
 			helper: Helper{}.Alias("u"),
 			buildSQL: func(h Helper) (string, []any, error) {
 				return h.Select([]string{"id", "name"}, "users",
-					h.SelectOptions().Limit(2)...,
+					h.Option.Select.Limit(2),
 				).Where("u.id = ?", 1).ToSql()
 			},
 			wantSQL:  "SELECT `u`.`id`, `u`.`name` FROM `users` AS `u` WHERE u.id = ? LIMIT 2",

@@ -68,6 +68,16 @@ type EscapeFunc func(key string, table bool) string
 type Helper struct {
 	alias      string
 	escapeFunc EscapeFunc
+	
+	Option struct {
+		Select Option[SelectBuilder]
+		Update Option[UpdateBuilder]
+	}
+
+	Options struct {
+		Select Options[SelectBuilder]
+		Update Options[UpdateBuilder]
+	}
 }
 
 // EscapeColumns escapes multiple column names for safe SQL usage.
@@ -136,10 +146,6 @@ func (h Helper) WithEscapeFunc(fn EscapeFunc) Helper {
 	return h
 }
 
-func (h Helper) SelectOptions() Options[SelectBuilder] { return nil }
-
-func (h Helper) UpdateOptions() Options[UpdateBuilder] { return nil }
-
 type (
 	ChainBuilder[T any] interface {
 		Prefix(string, ...any) T
@@ -153,7 +159,11 @@ type (
 	}
 
 	Options[T ChainBuilder[T]] []func(T) T
+
+	Option[T ChainBuilder[T]] func(T) T
 )
+
+//
 
 func (opt Options[T]) Prefix(str string, args ...any) Options[T] {
 	return append(opt, func(builder T) T { return builder.Prefix(str, args...) })
