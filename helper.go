@@ -136,8 +136,12 @@ func (h Helper) WithEscapeFunc(fn EscapeFunc) Helper {
 	return h
 }
 
+func (h Helper) SelectOptions() Options[SelectBuilder] { return nil }
+
+func (h Helper) UpdateOptions() Options[UpdateBuilder] { return nil }
+
 type (
-	Options[T interface {
+	ChainBuilder[T any] interface {
 		Prefix(string, ...any) T
 		Suffix(string, ...any) T
 		Where(any, ...any) T
@@ -145,7 +149,10 @@ type (
 		Offset(uint64) T
 		FromSelect(SelectBuilder, string) T
 		From(string) T
-	}] []func(T) T
+		ToSql() (string, []interface{}, error)
+	}
+
+	Options[T ChainBuilder[T]] []func(T) T
 )
 
 func (opt Options[T]) Prefix(str string, args ...any) Options[T] {
@@ -155,10 +162,6 @@ func (opt Options[T]) Prefix(str string, args ...any) Options[T] {
 func (opt Options[T]) Suffix(str string, args ...any) Options[T] {
 	return append(opt, func(builder T) T { return builder.Suffix(str, args...) })
 }
-
-func (h Helper) SelectOptions() Options[SelectBuilder] { return nil }
-
-func (h Helper) UpdateOptions() Options[UpdateBuilder] { return nil }
 
 func (opt Options[T]) Append(opts ...func(T) T) Options[T] {
 	return append(opt, opts...)
@@ -182,4 +185,54 @@ func (opt Options[T]) Limit(limit uint64) Options[T] {
 
 func (opt Options[T]) Offset(offset uint64) Options[T] {
 	return append(opt, func(builder T) T { return builder.Offset(offset) })
+}
+
+type copier[V any] interface{ copy() V }
+
+type chainBuilder[Executor copier[Executor], Ptr interface {
+	*Executor
+	set(copier[Executor], Builder)
+}, Builder ChainBuilder[Builder]] struct {
+	copier  copier[Executor]
+	builder Builder
+}
+
+func wrapBuilder[Executor copier[Executor], Ptr interface {
+	*Executor
+	set(copier[Executor], Builder)
+}, Builder ChainBuilder[Builder]](cp Executor, builder Builder, opts ...func(Builder) Builder) Executor {
+	for _, opt := range opts {
+		builder = opt(builder)
+	}
+	Ptr(&cp).set(cp, builder)
+	return cp
+}
+
+func (w *chainBuilder[Executor, _, Builder]) set(cp copier[Executor], builder Builder) {
+	w.copier = cp
+	w.builder = builder
+}
+
+func (w chainBuilder[Executor, _, Builder]) ToSql() (sql string, args []interface{}, err error) {
+	return w.builder.ToSql()
+}
+
+func (w chainBuilder[Executor, _, Builder]) Where(pred any, args ...any) Executor {
+	return w.WithOptions(func(builder Builder) Builder {
+		return builder.Where(pred, args...)
+	})
+}
+
+func (w chainBuilder[Executor, _, Builder]) Limit(v uint64) Executor {
+	return w.WithOptions(func(builder Builder) Builder {
+		return builder.Limit(v)
+	})
+}
+
+func (w chainBuilder[Executor, _, Builder]) Options() Options[Builder] {
+	return make(Options[Builder], 0)
+}
+
+func (w chainBuilder[Executor, Ptr, Builder]) WithOptions(opts ...func(Builder) Builder) (zero Executor) {
+	return wrapBuilder[Executor, Ptr](w.copier.copy(), w.builder, opts...)
 }

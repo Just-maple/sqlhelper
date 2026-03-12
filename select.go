@@ -22,50 +22,20 @@ func (h Helper) SelectDistinct(column, table string) SelectExecutor {
 // Optional builder options can be provided to customize the query.
 func (h Helper) Select(columns []string, table string, opts ...SelectOption) SelectExecutor {
 	builder := squirrel.Select(h.EscapeColumns(columns)...).From(h.EscapeTable(table))
-	for _, opt := range opts {
-		builder = opt(builder)
-	}
-	return SelectExecutor{
-		helper:  h,
-		builder: builder,
-		columns: columns,
-	}
+	return wrapBuilder(SelectExecutor{helper: h, columns: columns}, builder, opts...)
 }
 
 // SelectExecutor handles the execution of SELECT queries.
 type SelectExecutor struct {
+	chainBuilder[SelectExecutor, *SelectExecutor, SelectBuilder]
 	helper  Helper
-	builder SelectBuilder
 	columns []string
 }
 
-// ToSql converts the query to SQL string and arguments.
-func (exec SelectExecutor) ToSql() (string, []any, error) {
-	return exec.builder.ToSql()
-}
-
-// Where adds a WHERE clause to the query.
-func (exec SelectExecutor) Where(pred any, args ...any) SelectExecutor {
-	return exec.WithOptions(func(builder SelectBuilder) SelectBuilder {
-		return builder.Where(pred, args...)
-	})
-}
-
-// WithOptions applies additional builder options to the query.
-func (exec SelectExecutor) WithOptions(opts ...SelectOption) SelectExecutor {
-	builder := exec.builder
-	for _, opt := range opts {
-		builder = opt(builder)
-	}
-	return SelectExecutor{
-		helper:  exec.helper,
-		columns: exec.columns,
-		builder: builder,
-	}
-}
-
-func (exec SelectExecutor) Options() Options[SelectBuilder] {
-	return exec.helper.SelectOptions()
+func (exec SelectExecutor) copy() SelectExecutor {
+	cp := exec
+	cp.columns = append(make([]string, 0, len(cp.columns)), cp.columns...)
+	return cp
 }
 
 // WithQueries applies Query options (pagination, sorting, filtering) to the query.
