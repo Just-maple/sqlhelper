@@ -68,7 +68,7 @@ type EscapeFunc func(key string, table bool) string
 type Helper struct {
 	alias      string
 	escapeFunc EscapeFunc
-	
+
 	Option struct {
 		Select Option[SelectBuilder]
 		Update Option[UpdateBuilder]
@@ -144,57 +144,6 @@ func (h Helper) escape(key string, isTable bool) string {
 func (h Helper) WithEscapeFunc(fn EscapeFunc) Helper {
 	h.escapeFunc = fn
 	return h
-}
-
-type (
-	ChainBuilder[T any] interface {
-		Prefix(string, ...any) T
-		Suffix(string, ...any) T
-		Where(any, ...any) T
-		Limit(uint64) T
-		Offset(uint64) T
-		FromSelect(SelectBuilder, string) T
-		From(string) T
-		ToSql() (string, []interface{}, error)
-	}
-
-	Options[T ChainBuilder[T]] []func(T) T
-
-	Option[T ChainBuilder[T]] func(T) T
-)
-
-//
-
-func (opt Options[T]) Prefix(str string, args ...any) Options[T] {
-	return append(opt, func(builder T) T { return builder.Prefix(str, args...) })
-}
-
-func (opt Options[T]) Suffix(str string, args ...any) Options[T] {
-	return append(opt, func(builder T) T { return builder.Suffix(str, args...) })
-}
-
-func (opt Options[T]) Append(opts ...func(T) T) Options[T] {
-	return append(opt, opts...)
-}
-
-func (opt Options[T]) Where(pred any, args ...any) Options[T] {
-	return append(opt, func(builder T) T { return builder.Where(pred, args...) })
-}
-
-func (opt Options[T]) FromSelect(sel SelectBuilder, alias string) Options[T] {
-	return append(opt, func(builder T) T { return builder.FromSelect(sel, alias) })
-}
-
-func (opt Options[T]) From(table string) Options[T] {
-	return append(opt, func(builder T) T { return builder.From(table) })
-}
-
-func (opt Options[T]) Limit(limit uint64) Options[T] {
-	return append(opt, func(builder T) T { return builder.Limit(limit) })
-}
-
-func (opt Options[T]) Offset(offset uint64) Options[T] {
-	return append(opt, func(builder T) T { return builder.Offset(offset) })
 }
 
 type ChainableBuilder[Executor Copier[*Executor], Ptr interface {

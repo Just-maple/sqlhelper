@@ -15,7 +15,9 @@ func WithChain[Carrier Copier[*Carrier], Ptr interface {
 	set(Copier[*Carrier], Builder)
 }, Builder any](cp Ptr, builder Builder, opts ...func(Builder) Builder) Carrier {
 	for _, opt := range opts {
-		builder = opt(builder)
+		if opt != nil {
+			builder = opt(builder)
+		}
 	}
 	cp.set(*cp, builder)
 	return *cp
