@@ -12,10 +12,11 @@ import (
 // UpdateExecutor handles the execution of UPDATE queries.
 type UpdateExecutor struct {
 	builder squirrel.UpdateBuilder
+	helper  Helper
 }
 
 // ModelUpdate updates a single model instance in the database.
-func (h ModelHelper[T, M]) ModelUpdate(model M, columns []string, opts ...UpdateBuilderOption) UpdateExecutor {
+func (h ModelHelper[T, M]) ModelUpdate(model M, columns []string, opts ...UpdateOption) UpdateExecutor {
 	mapping := h.MapColumns(model, &columns)
 	updateMapping := make(map[string]any, len(columns))
 	for _, col := range columns {
@@ -25,7 +26,7 @@ func (h ModelHelper[T, M]) ModelUpdate(model M, columns []string, opts ...Update
 }
 
 // Update creates a new UpdateExecutor for the specified table and values.
-func (h Helper) Update(table string, vv map[string]any, opts ...UpdateBuilderOption) UpdateExecutor {
+func (h Helper) Update(table string, vv map[string]any, opts ...UpdateOption) UpdateExecutor {
 	builder := squirrel.Update(h.EscapeTable(table))
 	for _, opt := range opts {
 		builder = opt(builder)
@@ -35,6 +36,7 @@ func (h Helper) Update(table string, vv map[string]any, opts ...UpdateBuilderOpt
 	}
 	return UpdateExecutor{
 		builder: builder,
+		helper:  h,
 	}
 }
 
@@ -80,10 +82,14 @@ func (exec UpdateExecutor) Limit(limit uint64) UpdateExecutor {
 }
 
 // WithOptions applies additional builder options to the query.
-func (exec UpdateExecutor) WithOptions(opts ...UpdateBuilderOption) UpdateExecutor {
+func (exec UpdateExecutor) WithOptions(opts ...UpdateOption) UpdateExecutor {
 	builder := exec.builder
 	for _, opt := range opts {
 		builder = opt(builder)
 	}
-	return UpdateExecutor{builder: builder}
+	return UpdateExecutor{builder: builder, helper: exec.helper}
+}
+
+func (exec UpdateExecutor) Options() Options[UpdateBuilder] {
+	return exec.helper.UpdateOptions()
 }

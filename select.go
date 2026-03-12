@@ -20,7 +20,7 @@ func (h Helper) SelectDistinct(column, table string) SelectExecutor {
 
 // Select creates a new SelectExecutor for the specified columns and table.
 // Optional builder options can be provided to customize the query.
-func (h Helper) Select(columns []string, table string, opts ...SelectBuilderOption) SelectExecutor {
+func (h Helper) Select(columns []string, table string, opts ...SelectOption) SelectExecutor {
 	builder := squirrel.Select(h.EscapeColumns(columns)...).From(h.EscapeTable(table))
 	for _, opt := range opts {
 		builder = opt(builder)
@@ -52,7 +52,7 @@ func (exec SelectExecutor) Where(pred any, args ...any) SelectExecutor {
 }
 
 // WithOptions applies additional builder options to the query.
-func (exec SelectExecutor) WithOptions(opts ...SelectBuilderOption) SelectExecutor {
+func (exec SelectExecutor) WithOptions(opts ...SelectOption) SelectExecutor {
 	builder := exec.builder
 	for _, opt := range opts {
 		builder = opt(builder)
@@ -64,10 +64,14 @@ func (exec SelectExecutor) WithOptions(opts ...SelectBuilderOption) SelectExecut
 	}
 }
 
+func (exec SelectExecutor) Options() Options[SelectBuilder] {
+	return exec.helper.SelectOptions()
+}
+
 // WithQueries applies Query options (pagination, sorting, filtering) to the query.
 // The Query.Option receives the Helper context for proper column escaping with alias support.
 func (exec SelectExecutor) WithQueries(queries ...Query) SelectExecutor {
-	options := make([]SelectBuilderOption, 0, len(queries))
+	options := make([]SelectOption, 0, len(queries))
 	for _, q := range queries {
 		options = append(options, q.Option(exec.helper))
 	}
@@ -178,7 +182,7 @@ func (h ModelHelper[T, M]) Columns(filter func(string) bool) (columns []string) 
 }
 
 // ModelSelect creates a new ModelSelectExecutor for the model.
-func (h ModelHelper[T, M]) ModelSelect(columns []string, opts ...SelectBuilderOption) ModelSelectExecutor[T, M] {
+func (h ModelHelper[T, M]) ModelSelect(columns []string, opts ...SelectOption) ModelSelectExecutor[T, M] {
 	t := h.alloc()
 	model := M(&t)
 	h.MapColumns(model, &columns)
@@ -236,7 +240,7 @@ func (exec ModelSelectExecutor[T, M]) Where(pred any, args ...any) ModelSelectEx
 }
 
 // WithOptions applies additional builder options to the query.
-func (exec ModelSelectExecutor[T, M]) WithOptions(opts ...SelectBuilderOption) ModelSelectExecutor[T, M] {
+func (exec ModelSelectExecutor[T, M]) WithOptions(opts ...SelectOption) ModelSelectExecutor[T, M] {
 	return ModelSelectExecutor[T, M]{
 		exec:  exec.exec.WithOptions(opts...),
 		alloc: exec.alloc,

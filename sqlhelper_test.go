@@ -184,7 +184,7 @@ func TestSelectExecutor(t *testing.T) {
 
 type pageQuery struct{ page, size int }
 
-func (p pageQuery) Option(h Helper) SelectBuilderOption {
+func (p pageQuery) Option(h Helper) SelectOption {
 	return func(b SelectBuilder) SelectBuilder {
 		return b.Limit(uint64(p.size)).Offset(uint64((p.page - 1) * p.size))
 	}
@@ -196,7 +196,7 @@ type orderQuery struct {
 	desc  bool
 }
 
-func (q orderQuery) Option(h Helper) SelectBuilderOption {
+func (q orderQuery) Option(h Helper) SelectOption {
 	o := q.field
 	if q.desc {
 		o += " DESC"
@@ -209,7 +209,7 @@ type whereQuery struct {
 	args []any
 }
 
-func (q whereQuery) Option(h Helper) SelectBuilderOption {
+func (q whereQuery) Option(h Helper) SelectOption {
 	return func(b SelectBuilder) SelectBuilder { return b.Where(q.cond, q.args...) }
 }
 

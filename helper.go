@@ -10,8 +10,8 @@ import (
 // Query defines the interface for SQL clause injection.
 // Implement this interface to define custom WHERE/SORT/JOIN logic.
 type Query interface {
-	// Option returns a SelectBuilderOption that applies SQL clauses (e.g., WHERE/SORT/JOIN)
-	Option(helper Helper) SelectBuilderOption
+	// Option returns a SelectOption that applies SQL clauses (e.g., WHERE/SORT/JOIN)
+	Option(helper Helper) SelectOption
 }
 
 // ModelPointer defines the constraint for model types.
@@ -45,9 +45,9 @@ type (
 
 // Type aliases for builder options
 type (
-	SelectBuilderOption func(SelectBuilder) SelectBuilder
-	UpdateBuilderOption func(UpdateBuilder) UpdateBuilder
-	InsertBuilderOption func(InsertBuilder) InsertBuilder
+	SelectOption = func(SelectBuilder) SelectBuilder
+	UpdateOption = func(UpdateBuilder) UpdateBuilder
+	InsertOption = func(InsertBuilder) InsertBuilder
 )
 
 // alloc allocates a new instance of T using the allocFunc.
@@ -87,7 +87,7 @@ func (h Helper) MapColumns(model Model, columns *[]string) Mapper {
 	return mapping
 }
 
-// CountOption is a SelectBuilderOption that converts a select query to a count query
+// CountOption is a SelectOption that converts a select query to a count query
 var CountOption = func(builder SelectBuilder) SelectBuilder {
 	return squirrel.Select("COUNT(1)").FromSelect(builder, "t")
 }
@@ -136,10 +136,50 @@ func (h Helper) WithEscapeFunc(fn EscapeFunc) Helper {
 	return h
 }
 
-func (h Helper) SelectOptionWhere(pred any, args ...any) SelectBuilderOption {
-	return func(builder SelectBuilder) SelectBuilder { return builder.Where(pred, args...) }
+type (
+	Options[T interface {
+		Prefix(string, ...any) T
+		Suffix(string, ...any) T
+		Where(any, ...any) T
+		Limit(uint64) T
+		Offset(uint64) T
+		FromSelect(SelectBuilder, string) T
+		From(string) T
+	}] []func(T) T
+)
+
+func (opt Options[T]) Prefix(str string, args ...any) Options[T] {
+	return append(opt, func(builder T) T { return builder.Prefix(str, args...) })
 }
 
-func (h Helper) UpdateOptionWhere(pred any, args ...any) UpdateBuilderOption {
-	return func(builder UpdateBuilder) UpdateBuilder { return builder.Where(pred, args...) }
+func (opt Options[T]) Suffix(str string, args ...any) Options[T] {
+	return append(opt, func(builder T) T { return builder.Suffix(str, args...) })
+}
+
+func (h Helper) SelectOptions() Options[SelectBuilder] { return nil }
+
+func (h Helper) UpdateOptions() Options[UpdateBuilder] { return nil }
+
+func (opt Options[T]) Append(opts ...func(T) T) Options[T] {
+	return append(opt, opts...)
+}
+
+func (opt Options[T]) Where(pred any, args ...any) Options[T] {
+	return append(opt, func(builder T) T { return builder.Where(pred, args...) })
+}
+
+func (opt Options[T]) FromSelect(sel SelectBuilder, alias string) Options[T] {
+	return append(opt, func(builder T) T { return builder.FromSelect(sel, alias) })
+}
+
+func (opt Options[T]) From(table string) Options[T] {
+	return append(opt, func(builder T) T { return builder.From(table) })
+}
+
+func (opt Options[T]) Limit(limit uint64) Options[T] {
+	return append(opt, func(builder T) T { return builder.Limit(limit) })
+}
+
+func (opt Options[T]) Offset(offset uint64) Options[T] {
+	return append(opt, func(builder T) T { return builder.Offset(offset) })
 }

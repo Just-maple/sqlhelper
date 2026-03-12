@@ -57,7 +57,7 @@ func (exec InsertExecutor) ToSql() (string, []any, error) {
 }
 
 // WithOptions applies additional builder options to the query.
-func (exec InsertExecutor) WithOptions(opts ...InsertBuilderOption) InsertExecutor {
+func (exec InsertExecutor) WithOptions(opts ...InsertOption) InsertExecutor {
 	builder := exec.builder
 	for _, opt := range opts {
 		builder = opt(builder)

@@ -36,7 +36,7 @@ type testPageQuery struct {
 	SkipCnt bool
 }
 
-func (p *testPageQuery) Option(h Helper) SelectBuilderOption {
+func (p *testPageQuery) Option(h Helper) SelectOption {
 	return func(b SelectBuilder) SelectBuilder {
 		return b.Limit(uint64(p.Limit)).Offset(uint64((p.Page - 1) * p.Limit))
 	}
@@ -48,7 +48,7 @@ type testSortQuery struct {
 	Desc  bool
 }
 
-func (q *testSortQuery) Option(h Helper) SelectBuilderOption {
+func (q *testSortQuery) Option(h Helper) SelectOption {
 	order := "ASC"
 	if q.Desc {
 		order = "DESC"
@@ -62,7 +62,7 @@ type testStatusFilterQuery struct {
 	Status string
 }
 
-func (q *testStatusFilterQuery) Option(h Helper) SelectBuilderOption {
+func (q *testStatusFilterQuery) Option(h Helper) SelectOption {
 	return func(b SelectBuilder) SelectBuilder {
 		return b.Where("status = ?", q.Status)
 	}
@@ -72,7 +72,7 @@ type testTenantQuery struct {
 	TenantID string
 }
 
-func (q *testTenantQuery) Option(h Helper) SelectBuilderOption {
+func (q *testTenantQuery) Option(h Helper) SelectOption {
 	return func(b SelectBuilder) SelectBuilder {
 		return b.Where(h.EscapeColumn("tenant_id")+" = ?", q.TenantID)
 	}
@@ -80,7 +80,7 @@ func (q *testTenantQuery) Option(h Helper) SelectBuilderOption {
 
 type testNotDeletedQuery struct{}
 
-func (q *testNotDeletedQuery) Option(h Helper) SelectBuilderOption {
+func (q *testNotDeletedQuery) Option(h Helper) SelectOption {
 	return func(b SelectBuilder) SelectBuilder {
 		return b.Where(h.EscapeColumn("deleted_at") + " IS NULL")
 	}
@@ -90,7 +90,7 @@ type testWithOrderQuery struct {
 	OrderStatus int
 }
 
-func (q *testWithOrderQuery) Option(h Helper) SelectBuilderOption {
+func (q *testWithOrderQuery) Option(h Helper) SelectOption {
 	return func(b SelectBuilder) SelectBuilder {
 		userIDCol := h.EscapeColumn("id")
 		return b.LeftJoin(
