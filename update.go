@@ -30,10 +30,8 @@ func (h ModelHelper[T, M]) ModelUpdate(model M, columns []string, opts ...Update
 // Update creates a new UpdateExecutor for the specified table and values.
 func (h Helper) Update(table string, vv map[string]any, opts ...UpdateOption) UpdateExecutor {
 	builder := squirrel.Update(h.EscapeTable(table))
-	for k, v := range vv {
-		opts = append(opts, func(builder UpdateBuilder) UpdateBuilder {
-			return builder.Set(h.EscapeColumn(k), v)
-		})
+	for k := range vv {
+		builder = builder.Set(h.EscapeColumn(k), vv[k])
 	}
 	return WithChain(&UpdateExecutor{helper: h}, builder, opts...)
 }
