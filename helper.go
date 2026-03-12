@@ -187,52 +187,26 @@ func (opt Options[T]) Offset(offset uint64) Options[T] {
 	return append(opt, func(builder T) T { return builder.Offset(offset) })
 }
 
-type copier[V any] interface{ copy() V }
-
-type chainBuilder[Executor copier[Executor], Ptr interface {
+type ChainableBuilder[Executor Copier[*Executor], Ptr interface {
 	*Executor
-	set(copier[Executor], Builder)
+	set(Copier[*Executor], Builder)
 }, Builder ChainBuilder[Builder]] struct {
-	copier  copier[Executor]
-	builder Builder
+	ChainMeta[Executor, Ptr, Builder]
+	Options Options[Builder]
 }
 
-func wrapBuilder[Executor copier[Executor], Ptr interface {
-	*Executor
-	set(copier[Executor], Builder)
-}, Builder ChainBuilder[Builder]](cp Executor, builder Builder, opts ...func(Builder) Builder) Executor {
-	for _, opt := range opts {
-		builder = opt(builder)
-	}
-	Ptr(&cp).set(cp, builder)
-	return cp
-}
-
-func (w *chainBuilder[Executor, _, Builder]) set(cp copier[Executor], builder Builder) {
-	w.copier = cp
-	w.builder = builder
-}
-
-func (w chainBuilder[Executor, _, Builder]) ToSql() (sql string, args []interface{}, err error) {
+func (w ChainableBuilder[Executor, _, Builder]) ToSql() (sql string, args []interface{}, err error) {
 	return w.builder.ToSql()
 }
 
-func (w chainBuilder[Executor, _, Builder]) Where(pred any, args ...any) Executor {
+func (w ChainableBuilder[Executor, _, Builder]) Where(pred any, args ...any) Executor {
 	return w.WithOptions(func(builder Builder) Builder {
 		return builder.Where(pred, args...)
 	})
 }
 
-func (w chainBuilder[Executor, _, Builder]) Limit(v uint64) Executor {
+func (w ChainableBuilder[Executor, _, Builder]) Limit(v uint64) Executor {
 	return w.WithOptions(func(builder Builder) Builder {
 		return builder.Limit(v)
 	})
-}
-
-func (w chainBuilder[Executor, _, Builder]) Options() Options[Builder] {
-	return make(Options[Builder], 0)
-}
-
-func (w chainBuilder[Executor, Ptr, Builder]) WithOptions(opts ...func(Builder) Builder) (zero Executor) {
-	return wrapBuilder[Executor, Ptr](w.copier.copy(), w.builder, opts...)
 }

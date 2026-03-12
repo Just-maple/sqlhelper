@@ -11,11 +11,11 @@ import (
 
 // UpdateExecutor handles the execution of UPDATE queries.
 type UpdateExecutor struct {
-	chainBuilder[UpdateExecutor, *UpdateExecutor, UpdateBuilder]
+	ChainableBuilder[UpdateExecutor, *UpdateExecutor, UpdateBuilder]
 	helper Helper
 }
 
-func (exec UpdateExecutor) copy() UpdateExecutor { return exec }
+func (exec UpdateExecutor) Copy() *UpdateExecutor { return &exec }
 
 // ModelUpdate updates a single model instance in the database.
 func (h ModelHelper[T, M]) ModelUpdate(model M, columns []string, opts ...UpdateOption) UpdateExecutor {
@@ -35,7 +35,7 @@ func (h Helper) Update(table string, vv map[string]any, opts ...UpdateOption) Up
 			return builder.Set(h.EscapeColumn(k), v)
 		})
 	}
-	return wrapBuilder(UpdateExecutor{helper: h}, builder, opts...)
+	return WithChain(&UpdateExecutor{helper: h}, builder, opts...)
 }
 
 // ExecRowsAffected executes the update query and returns the number of affected rows.

@@ -22,20 +22,20 @@ func (h Helper) SelectDistinct(column, table string) SelectExecutor {
 // Optional builder options can be provided to customize the query.
 func (h Helper) Select(columns []string, table string, opts ...SelectOption) SelectExecutor {
 	builder := squirrel.Select(h.EscapeColumns(columns)...).From(h.EscapeTable(table))
-	return wrapBuilder(SelectExecutor{helper: h, columns: columns}, builder, opts...)
+	return WithChain(&SelectExecutor{helper: h, columns: columns}, builder, opts...)
 }
 
 // SelectExecutor handles the execution of SELECT queries.
 type SelectExecutor struct {
-	chainBuilder[SelectExecutor, *SelectExecutor, SelectBuilder]
+	ChainableBuilder[SelectExecutor, *SelectExecutor, SelectBuilder]
 	helper  Helper
 	columns []string
 }
 
-func (exec SelectExecutor) copy() SelectExecutor {
+func (exec SelectExecutor) Copy() *SelectExecutor {
 	cp := exec
 	cp.columns = append(make([]string, 0, len(cp.columns)), cp.columns...)
-	return cp
+	return &cp
 }
 
 // WithQueries applies Query options (pagination, sorting, filtering) to the query.
